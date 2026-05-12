@@ -1,27 +1,32 @@
 class ApiResponse {
+	static success(res, statusCode, message, data = null, meta = null) {
+		const payload = {
+			success: true,
+			message,
+		};
 
-    static ok(res, message, data = null){
-        return res.status(200).json({
-            success: true,
-            message,
-            data
-        })
-    }
+		if (data !== null) {
+			payload.data = data;
+		}
 
-    static created(res, message, data = null){
-        return res.status(201).json({
-            success: true,
-            message,
-            data
-        })
-    }
+		if (meta !== null) {
+			payload.meta = meta;
+		}
 
-    static noContent(res){
-        return res.status(204).send()
-    }
+		return res.status(statusCode).json(payload);
+	}
 
+	static ok(res, message, data = null, meta = null) {
+		return ApiResponse.success(res, 200, message, data, meta);
+	}
+
+	static created(res, message, data = null, meta = null) {
+		return ApiResponse.success(res, 201, message, data, meta);
+	}
+
+	static noContent(res) {
+		return res.status(204).send();
+	}
 }
 
-
-
-export default ApiResponse
+export default ApiResponse;
