@@ -1,25 +1,21 @@
 import admin from "../config/firebase.js";
+import ApiError from "../utils/api-error.js";
 
-const verifyFirebaseToken = async (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
 	try {
-		const token = req.headers.authorization?.split(" ")[1];
-
-		if (!token) {
-			return res.status(401).json({
-				message: "No token",
-			});
+		const authorizationHeader = req.headers.authorization;
+		if (!authorizationHeader || !authorizationHeader.startsWith("Bearer ")) {
+			return next(ApiError.unauthorized("Missing Bearer token"));
 		}
 
+		const token = authorizationHeader.split(" ")[1];
 		const decoded = await admin.auth().verifyIdToken(token);
 
 		req.user = decoded;
-
-		next();
+		return next();
 	} catch (error) {
-		return res.status(401).json({
-			message: "Invalid token",
-		});
+		return next(ApiError.unauthorized("Invalid or expired Firebase ID token"));
 	}
 };
 
-export default verifyFirebaseToken;
+export default authMiddleware;
