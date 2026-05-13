@@ -114,64 +114,58 @@ export const submitResponse = async (firebaseUser, pollId, payload) => {
 	assertValidPollId(pollId);
 	const respondent = await getOrCreateUserByFirebaseUID(firebaseUser);
 	const isAnonymous = normalizeBoolean(payload?.isAnonymous, false);
-	const session = await mongoose.startSession();
 
 	let responseDocument = null;
 	let pollSnapshot = null;
 
 	try {
-		await session.withTransaction(async () => {
-			const poll = await Poll.findById(pollId).session(session);
-			if (!poll) {
-				throw ApiError.notFound("Poll not found");
-			}
+		const poll = await Poll.findById(pollId);
+		if (!poll) {
+			throw ApiError.notFound("Poll not found");
+		}
 
-			await refreshPollStatus(poll, session);
-			if (poll.status === "expired") {
-				throw ApiError.badRequest("Poll has expired");
-			}
+		await refreshPollStatus(poll);
+		if (poll.status === "expired") {
+			throw ApiError.badRequest("Poll has expired");
+		}
 
-			if (!poll.allowAnonymous && isAnonymous) {
-				throw ApiError.badRequest(
-					"Anonymous responses are disabled for this poll",
-				);
-			}
+		if (!poll.allowAnonymous && isAnonymous) {
+			throw ApiError.badRequest(
+				"Anonymous responses are disabled for this poll",
+			);
+		}
 
-			const existingResponse = await Response.findOne({
+		const existingResponse = await Response.findOne({
+			poll: poll._id,
+			respondent: respondent._id,
+		});
+
+		if (existingResponse) {
+			throw ApiError.conflict(
+				"You have already submitted a response for this poll",
+			);
+		}
+
+		const normalizedAnswers = validateAnswers(poll, payload?.answers);
+		incrementPollVotes(poll, normalizedAnswers);
+		poll.status =
+			poll.expiresAt && poll.expiresAt.getTime() <= Date.now()
+				? "expired"
+				: "active";
+		await poll.save();
+
+		const [createdResponse] = await Response.create([
+			{
 				poll: poll._id,
 				respondent: respondent._id,
-			}).session(session);
+				isAnonymous,
+				answers: normalizedAnswers,
+				submittedAt: new Date(),
+			},
+		]);
 
-			if (existingResponse) {
-				throw ApiError.conflict(
-					"You have already submitted a response for this poll",
-				);
-			}
-
-			const normalizedAnswers = validateAnswers(poll, payload?.answers);
-			incrementPollVotes(poll, normalizedAnswers);
-			poll.status =
-				poll.expiresAt && poll.expiresAt.getTime() <= Date.now()
-					? "expired"
-					: "active";
-			await poll.save({ session });
-
-			const [createdResponse] = await Response.create(
-				[
-					{
-						poll: poll._id,
-						respondent: respondent._id,
-						isAnonymous,
-						answers: normalizedAnswers,
-						submittedAt: new Date(),
-					},
-				],
-				{ session },
-			);
-
-			responseDocument = createdResponse;
-			pollSnapshot = poll.toObject();
-		});
+		responseDocument = createdResponse;
+		pollSnapshot = poll.toObject();
 	} catch (error) {
 		if (error?.code === 11000) {
 			throw ApiError.conflict(
@@ -180,8 +174,6 @@ export const submitResponse = async (firebaseUser, pollId, payload) => {
 		}
 
 		throw error;
-	} finally {
-		session.endSession();
 	}
 
 	const analytics = await getPollAnalytics(firebaseUser, pollId, {

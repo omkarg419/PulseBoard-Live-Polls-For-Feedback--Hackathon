@@ -6,11 +6,14 @@ import {
 	deletePollController,
 	getMyPollsController,
 	getPollByIdController,
+	getPublicPollByIdController,
 	publishPollController,
 	updatePollController,
 } from "./poll.controller.js";
 
 const router = Router();
+
+router.get("/public/:pollId", getPublicPollByIdController);
 
 router.use(authMiddleware);
 

@@ -5,6 +5,7 @@ import {
 	deletePoll,
 	getMyPolls,
 	getPollById,
+	getPollForSubmission,
 	publishPoll,
 	updatePoll,
 } from "./poll.service.js";
@@ -21,6 +22,11 @@ export const getMyPollsController = asyncHandler(async (req, res) => {
 
 export const getPollByIdController = asyncHandler(async (req, res) => {
 	const poll = await getPollById(req.user, req.params.pollId);
+	return ApiResponse.ok(res, "Poll fetched successfully", poll);
+});
+
+export const getPublicPollByIdController = asyncHandler(async (req, res) => {
+	const poll = await getPollForSubmission(req.params.pollId);
 	return ApiResponse.ok(res, "Poll fetched successfully", poll);
 });
 

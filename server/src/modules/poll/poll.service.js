@@ -8,6 +8,7 @@ import {
 	validateCreatePollPayload,
 	validateUpdatePollPayload,
 } from "./poll.validation.js";
+import { emitToPollRoom } from "../../common/config/socket.js";
 
 const assertValidPollId = (pollId) => {
 	if (!mongoose.Types.ObjectId.isValid(pollId)) {
@@ -137,7 +138,14 @@ export const publishPoll = async (firebaseUser, pollId) => {
 	poll.isPublished = true;
 	await poll.save();
 
-	return poll.populate("creator", "firebaseUID name email createdAt");
+	const populated = await poll.populate(
+		"creator",
+		"firebaseUID name email createdAt",
+	);
+
+	emitToPollRoom(pollId, "poll-published", populated);
+
+	return populated;
 };
 
 export const getPollForSubmission = async (pollId) => {
@@ -148,7 +156,7 @@ export const getPollForSubmission = async (pollId) => {
 	}
 
 	await markExpiredIfNeeded(poll);
-	if (poll.status === POLL_STATUS.EXPIRED) {
+	if (poll.status === POLL_STATUS.EXPIRED && !poll.isPublished) {
 		throw ApiError.badRequest("Poll has expired");
 	}
 
